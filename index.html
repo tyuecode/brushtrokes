@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f0d0b">
+<title>Brushtrokes · 笔触工坊 — 图片逐笔重绘</title>
+<meta name="description" content="在浏览器里把图片按不同绘画风格逐笔重绘成动画：油画、线描、色块、素描。全部本地处理，不上传。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23d9a441'/%3E%3Cpath d='M7 22c4-9 8-12 11-12s5 3 7 12' stroke='%2317130c' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+  *{box-sizing:border-box}
+  :root{
+    --bg:#0b0a09; --panel:#151210; --panel2:#1b1714; --line:#2b2520; --line2:#3b332b;
+    --gold:#d9a441; --gold2:#ecc97a; --gold3:#b8872c;
+    --txt:#f0ebe2; --dim:#a2957f; --dim2:#736658;
+    --ok:#8ee6a8; --err:#ff8f8f;
+    --radius:16px;
+    --shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 14px 40px -18px rgba(0,0,0,.9);
+  }
+  html,body{margin:0;min-height:100%;background:
+    radial-gradient(1100px 620px at 12% -8%,#1d1813 0%,#0d0c0a 52%,#070606 100%);
+    color:var(--txt);font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+    font-feature-settings:"tnum" 0}
+  /* 顶部一道极细的高光，让整页有「装裱」的感觉 */
+  body::before{content:"";position:fixed;top:0;left:0;right:0;height:1px;z-index:9;
+    background:linear-gradient(90deg,transparent,rgba(217,164,65,.42),transparent);pointer-events:none}
+  .wrap{max-width:1260px;margin:0 auto;padding:38px 26px 96px}
+
+  /* ---------- 页头 ---------- */
+  header{display:flex;align-items:baseline;gap:13px;margin-bottom:6px;flex-wrap:wrap}
+  h1{font-size:27px;margin:0;letter-spacing:-.2px;font-weight:800;color:var(--txt)}
+  h1 .h1cn{font-size:15px;font-weight:600;letter-spacing:.8px;color:var(--gold2);
+    vertical-align:2px;margin-left:2px}
+  .sub{color:var(--dim2);font-size:12.5px;letter-spacing:.3px}
+  .flow{margin:14px 0 24px;color:var(--dim);font-size:12.5px;letter-spacing:.3px;line-height:1.7;
+    padding:10px 14px;border-radius:11px;background:rgba(255,255,255,.022);
+    border:1px solid var(--line);display:flex;align-items:center;gap:9px}
+  .flow::before{content:"";width:6px;height:6px;border-radius:50%;flex:none;
+    background:var(--gold);box-shadow:0 0 10px var(--gold)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}}
+
+  /* ---------- 卡片 ---------- */
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));
+        border:1px solid var(--line);border-radius:var(--radius);padding:20px;
+        box-shadow:var(--shadow)}
+  .card h2{font-size:12px;margin:0 0 15px;color:var(--dim);font-weight:700;letter-spacing:1.4px;
+    text-transform:uppercase;display:flex;align-items:center;gap:9px}
+  .card h2::after{content:"";flex:1;height:1px;
+    background:linear-gradient(90deg,var(--line),transparent)}
+
+  /* ---------- 拖拽区 ---------- */
+  #drop{border:1.5px dashed var(--line2);border-radius:13px;padding:38px 20px;text-align:center;
+        cursor:pointer;transition:all .22s ease;background:rgba(255,255,255,.012)}
+  #drop:hover{border-color:var(--gold);background:rgba(217,164,65,.05);transform:translateY(-1px)}
+  #drop.on{border-color:var(--gold);background:rgba(217,164,65,.10);transform:scale(1.006)}
+  #drop .ico{font-size:32px;opacity:.5;margin-bottom:10px;transition:transform .22s}
+  #drop:hover .ico{transform:translateY(-2px);opacity:.8}
+  #drop .t1{font-size:14.5px;margin-bottom:5px;font-weight:600}
+  #drop .t2{font-size:12px;color:var(--dim2);line-height:1.6}
+  .pickBtn{display:none;margin:14px auto 0;min-height:40px;padding:8px 20px}
+  #thumbWrap{display:none;margin-top:16px}
+  #thumb{width:100%;border-radius:10px;display:block;
+    box-shadow:0 0 0 1px var(--line2),0 10px 26px -14px rgba(0,0,0,.9)}
+  .fname{font-size:12px;color:var(--dim);margin-top:9px;display:flex;justify-content:space-between;
+    gap:12px;font-variant-numeric:tabular-nums}
+
+  /* ---------- 参数行 ---------- */
+  .row{display:flex;align-items:center;gap:12px;margin:16px 0}
+  .row label{font-size:12.5px;color:var(--dim);width:92px;flex:none;letter-spacing:.2px}
+  .row input[type=range]{flex:1;accent-color:var(--gold);height:4px;cursor:pointer}
+  .row .val{width:88px;text-align:right;font-size:12.5px;color:var(--txt);
+    font-variant-numeric:tabular-nums;font-weight:600}
+  .row select,.row input[type=number],.row input[type=text]{
+    background:#0a0908;color:var(--txt);border:1px solid var(--line2);
+    border-radius:9px;padding:7px 10px;font-size:12.5px;font-family:inherit;
+    transition:border-color .18s}
+  .row select:focus,.row input:focus{outline:none;border-color:var(--gold)}
+
+  /* ---------- 按钮 ---------- */
+  button{font-family:inherit;cursor:pointer;border-radius:11px;font-size:14px;
+    border:1px solid var(--line2);background:linear-gradient(180deg,#261f18,#1c1712);
+    color:var(--txt);padding:11px 18px;transition:all .18s ease;font-weight:600}
+  button:hover:not(:disabled){background:linear-gradient(180deg,#302720,#221c16);
+    border-color:var(--gold);transform:translateY(-1px)}
+  button:active:not(:disabled){transform:translateY(0)}
+  button.primary{background:linear-gradient(180deg,#f0cd83,#c9932f);border-color:#ecc97a;
+    color:#1a1408;font-weight:800;width:100%;margin-top:10px;font-size:15px;padding:14px;
+    letter-spacing:.4px;box-shadow:0 8px 24px -12px rgba(217,164,65,.75)}
+  button.primary:hover:not(:disabled){filter:brightness(1.06);
+    box-shadow:0 10px 28px -11px rgba(217,164,65,.85)}
+  button:disabled{opacity:.42;cursor:not-allowed;transform:none}
+
+  /* ---------- 进度 ---------- */
+  .bar{height:5px;border-radius:99px;background:#241e18;overflow:hidden;margin-top:16px}
+  .bar i{display:block;height:100%;width:0%;border-radius:99px;
+    background:linear-gradient(90deg,#a8761f,var(--gold2));transition:width .35s ease;
+    box-shadow:0 0 12px rgba(217,164,65,.45)}
+  .stat{font-size:12.5px;color:var(--dim);margin-top:11px;min-height:18px;line-height:1.5}
+  .stat.err{color:var(--err)}
+
+  /* ---------- 风格卡片 ---------- */
+  .styles{display:grid;grid-template-columns:repeat(2,1fr);gap:11px;margin-bottom:4px;align-items:start}
+  .stile{position:relative;border:1px solid var(--line2);border-radius:13px;padding:12px 13px;
+    cursor:pointer;background:linear-gradient(180deg,rgba(255,255,255,.028),rgba(255,255,255,.008));
+    transition:all .2s ease;overflow:hidden}
+  .stile:hover{border-color:rgba(217,164,65,.55);transform:translateY(-1px);
+    box-shadow:0 8px 22px -14px rgba(0,0,0,.95)}
+  .stile.on{border-color:var(--gold);
+    background:linear-gradient(180deg,rgba(217,164,65,.14),rgba(217,164,65,.05));
+    box-shadow:0 0 0 1px rgba(217,164,65,.30) inset, 0 10px 26px -16px rgba(217,164,65,.7)}
+  .stile .nm{font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:8px;
+    letter-spacing:.2px}
+  .stile .nm .dot{width:7px;height:7px;border-radius:50%;background:var(--dim2);flex:none;
+    transition:all .2s}
+  .stile.on .nm .dot{background:var(--gold);box-shadow:0 0 10px var(--gold)}
+  .stile .ds{font-size:11px;color:var(--dim2);margin-top:5px;line-height:1.55}
+  .stile.on .ds{color:var(--dim)}
+  .stile .chips{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px}
+  .stile .chips i{font-style:normal;font-size:9.5px;padding:1.5px 6px;border-radius:5px;
+    color:var(--dim2);background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.055);
+    white-space:nowrap}
+  .stile.on .chips i{color:var(--gold2);background:rgba(217,164,65,.11);
+    border-color:rgba(217,164,65,.22)}
+  @media(max-width:520px){.styles{grid-template-columns:1fr}}
+
+  #result{display:none}
+  #result .big{font-size:38px;font-weight:800;letter-spacing:-.5px;
+    background:linear-gradient(180deg,#fdf1d6,var(--gold) 88%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    font-variant-numeric:tabular-nums;line-height:1.12}
+  .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:9px 16px;margin:16px 0;
+    font-size:12.5px;padding:14px;border-radius:12px;
+    background:rgba(255,255,255,.018);border:1px solid var(--line)}
+  .kv span{color:var(--dim2)}.kv b{color:var(--txt);font-variant-numeric:tabular-nums;
+    font-weight:700}
+  .tips{font-size:12px;color:var(--dim2);line-height:1.8;margin-top:12px}
+  a{color:var(--gold2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .adv{margin-top:10px;border-top:1px solid var(--line);padding-top:14px}
+  .adv summary{cursor:pointer;font-size:12.5px;color:var(--dim);outline:none;
+    letter-spacing:.3px;transition:color .18s}
+  .adv summary:hover{color:var(--gold2)}
+  .files{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .files a,.files button{flex:1;min-width:124px;text-align:center;padding:11px;border-radius:10px;
+    background:linear-gradient(180deg,#241e17,#1b1611);border:1px solid var(--line2);
+    text-decoration:none;color:var(--txt);font-size:12.5px;font-weight:600;
+    transition:all .18s}
+  .files a:hover,.files button:hover{border-color:var(--gold);transform:translateY(-1px);
+    background:linear-gradient(180deg,#2e261d,#231d16)}
+  .stgChip{display:inline-block;padding:2.5px 8px;border-radius:6px;font-size:10.5px;
+    color:var(--dim2);background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+    margin:2px 3px 2px 0;font-variant-numeric:tabular-nums;transition:all .2s}
+  .stgChip.on{color:#1a1408;background:var(--gold2);border-color:var(--gold2);font-weight:700}
+  .stgChip.done{color:var(--dim);background:rgba(217,164,65,.10);border-color:rgba(217,164,65,.24)}
+  #liveWrap{display:none;margin-top:16px}
+  #live{width:100%;border-radius:11px;display:block;background:#181613;
+    box-shadow:0 0 0 1px var(--line2),0 18px 44px -18px rgba(0,0,0,.95)}
+  .liveBar{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:11.5px;
+    color:var(--dim);font-variant-numeric:tabular-nums}
+  .liveTrack{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.07);
+    overflow:hidden;cursor:pointer;position:relative}
+  .liveTrack i{display:block;height:100%;border-radius:99px;width:0%;
+    background:linear-gradient(90deg,#a8761f,var(--gold2))}
+  .badge{font-size:10.5px;padding:2.5px 9px;border-radius:7px;background:rgba(217,164,65,.14);
+    color:var(--gold);border:1px solid rgba(217,164,65,.3);font-weight:600}
+  footer{margin-top:44px;font-size:11.5px;color:var(--dim2);line-height:2;text-align:center;
+    padding-top:22px;border-top:1px solid var(--line)}
+  footer a{color:var(--dim)}
+
+  @media(max-width:720px){
+    .wrap{padding:18px 14px 64px}
+    h1{font-size:22px}
+    h1 .h1cn{font-size:13px;vertical-align:1px}
+    .sub{font-size:12px}
+    .flow{font-size:11.5px;margin:12px 0 18px;line-height:1.8;padding:9px 12px}
+    .grid{grid-template-columns:1fr;gap:15px}
+    .card{padding:15px;border-radius:14px}
+    .card h2{font-size:11px;margin-bottom:12px;letter-spacing:1.2px}
+    #drop{padding:30px 16px;border-radius:12px}
+    #drop .ico{font-size:30px}
+    #drop .t1{font-size:13.5px}
+    #drop .t2{font-size:11px;line-height:1.6}
+    .pickBtn{display:block}
+    .row{flex-wrap:wrap;gap:8px;margin:14px 0}
+    .row label{width:100%;font-size:12px}
+    .row .val{width:auto;margin-left:auto}
+    .row input[type=range]{flex:1;height:32px}
+    .row select,.row input[type=number],.row input[type=text]{
+      width:100%;padding:10px 12px;font-size:14px;
+      min-height:44px;border-radius:10px}
+    .row input[type=number]{width:100%}
+    button{min-height:46px;padding:12px 18px;font-size:14.5px;border-radius:12px}
+    button.primary{padding:15px;font-size:15.5px}
+    #result .big{font-size:32px}
+    .kv{grid-template-columns:1fr 1fr;gap:8px 10px;font-size:12px;padding:12px}
+    .files{flex-direction:column}
+    .files a,.files button{min-width:0;padding:13px;font-size:13.5px;min-height:46px}
+    .tips{font-size:11.5px}
+    .adv summary{min-height:40px;display:flex;align-items:center;font-size:13px}
+    .stile{padding:12px}
+    .stile .nm{font-size:14px}
+    .stile .ds{font-size:11.5px}
+  }
+  @media(min-width:721px) and (max-width:940px){
+    .wrap{padding:24px 18px 70px}
+    .grid{gap:14px}
+    .card{padding:15px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Brushtrokes <span class="h1cn">笔触工坊</span></h1>
+    <div class="sub">八种画风 · 逐笔重绘 · 纯浏览器运行</div>
+  </header>
+  <div class="flow" id="flowLine">选一种风格，图片会被逐笔重绘成可播放的动画</div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>① 选一张图</h2>
+        <div id="drop">
+          <div class="ico">🖼</div>
+          <div class="t1">把图片拖到这里，或点击选择</div>
+          <div class="t2">PNG / JPG / WEBP · 图片不会上传，全部在本机处理</div>
+          <button type="button" class="pickBtn" id="pickBtn">选择图片</button>
+        </div>
+        <input type="file" id="file" accept="image/*" hidden>
+        <div id="thumbWrap">
+          <img id="thumb" alt="preview">
+          <div class="fname"><span id="fn">–</span><span id="fs"></span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>② 选风格</h2>
+        <div class="styles" id="styleBox"></div>
+
+        <h2 style="margin-top:18px">③ 调参数</h2>
+        <div class="row">
+          <label>细腻程度</label>
+          <input type="range" id="scale" min="0.55" max="1.8" step="0.05" value="1">
+          <div class="val" id="scaleV">1.00</div>
+        </div>
+        <div class="tips" style="margin-top:-8px;margin-bottom:8px" id="scaleHint">
+          数值越小笔触越细越密，细节越清楚，文件也越大。
+        </div>
+        <div class="row">
+          <label>动画时长</label>
+          <input type="range" id="secs" min="20" max="240" step="5" value="90">
+          <div class="val" id="secsV">90s</div>
+        </div>
+        <div class="row">
+          <label>处理精度</label>
+          <select id="workRes">
+            <option value="1000">快（1000px）</option>
+            <option value="1400" selected>标准（1400px）</option>
+            <option value="2000">精（2000px）</option>
+            <option value="0">原始分辨率（最慢）</option>
+          </select>
+          <div class="val"></div>
+        </div>
+        <div class="tips" style="margin-top:-4px">
+          手机建议用「快」，电脑可用「标准」或更高。
+        </div>
+        <details class="adv">
+          <summary>高级选项</summary>
+          <div class="row">
+            <label>明暗分层</label>
+            <select id="layers">
+              <option>3</option><option>4</option><option selected>5</option>
+              <option>6</option><option>7</option>
+            </select>
+            <div class="val"></div>
+          </div>
+          <div class="tips" style="margin-top:-8px;margin-bottom:6px" id="layerHint">
+            色块风格用它决定配色档数。
+          </div>
+          <div class="row">
+            <label>细节区数量</label>
+            <input type="range" id="rois" min="0" max="14" step="1" value="6">
+            <div class="val" id="roisV">6</div>
+          </div>
+          <div class="row">
+            <label>随机种子</label>
+            <input type="number" id="seed" value="20261109" step="1" style="width:120px">
+            <div class="val"></div>
+          </div>
+        </details>
+        <button class="primary" id="go" disabled>开始生成</button>
+        <div class="bar"><i id="pbar"></i></div>
+        <div class="stat" id="pstat">等待选择图片…</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" id="result">
+        <h2>④ 完成</h2>
+        <div class="big" id="rStrokes">–</div>
+        <div class="tips" style="margin-top:2px" id="rUnit">条笔触</div>
+
+        <div id="liveWrap">
+          <div class="liveBar" style="margin-bottom:6px">
+            <span class="badge" id="liveState">预览中</span>
+            <span id="liveInfo" style="margin-left:auto">–</span>
+          </div>
+          <canvas id="live"></canvas>
+          <div class="liveBar">
+            <span id="liveCount">0 / 0</span>
+            <span class="liveTrack" id="liveTrack"><i id="liveBar"></i></span>
+            <span id="liveSec">0.0s</span>
+          </div>
+          <div style="margin-top:7px" id="liveStages"></div>
+        </div>
+
+        <div class="kv" id="rKv"></div>
+        <div class="row" style="margin:12px 0 4px">
+          <label>导出分辨率</label>
+          <select id="dlRes">
+            <option value="1" selected>原图尺寸</option>
+            <option value="2">2 倍（高清）</option>
+            <option value="3">3 倍（超清）</option>
+          </select>
+          <div class="val" id="dlResV"></div>
+        </div>
+        <div class="files">
+          <button id="dlPlayer">⬇ 下载播放器 HTML</button>
+          <button id="dlPreview">⬇ 下载终帧 PNG</button>
+          <button id="replay">↻ 重播</button>
+        </div>
+        <div class="tips">
+          终帧按所选倍数重新绘制，不受屏幕尺寸限制。倍数越高文件越大、导出越慢。
+        </div>
+        <div class="tips">
+          下载的播放器是单个 HTML 文件，图片和笔触全部内联，
+          双击就能离线打开，也可以直接发给别人。
+        </div>
+      </div>
+
+      <div class="card" id="hint">
+        <h2>说明</h2>
+        <div class="tips">
+          <b style="color:var(--dim)">全部本地处理</b>：图片只留在你的浏览器里，不会上传到任何服务器。
+          这也意味着生成速度取决于你的电脑。<br><br>
+          <b style="color:var(--dim)">八种风格</b>：<br>
+          油画——十道古典工序，笔触有厚涂和罩染；<br>
+          线描——近黑底上的细白线，只勾结构；<br>
+          色块——分层平涂的硬边色块，海报配色；<br>
+          素描——纸底石墨排线，暗部交叉线；<br>
+          水墨——宣纸墨色，浓淡枯湿、留白透气；<br>
+          点彩——密集小色点靠眼睛混色；<br>
+          霓虹——深底发光线条；<br>
+          像素——量化成方格逐格点亮。<br><br>
+          <b style="color:var(--dim)">细腻程度</b>：数值越小笔触越细越密、细节越清楚，文件也越大。<br><br>
+          <b style="color:var(--dim)">分析分辨率</b>：程序在大图上会自动降采样后再分析结构，
+          笔触种子和取色仍在原图上做，所以细节不会糊。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Brushtrokes 笔触工坊 · 油画 / 线描 / 色块 / 素描 / 水墨 / 点彩 / 霓虹 / 像素<br>
+    纯前端实现，无需服务器 · <a href="https://github.com/tyuecode/brushtrokes" id="repoLink" target="_blank">源码</a>
+  </footer>
+</div>
+
+<script src="build.js"></script>
+<script src="render.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+let curFile = null, curImg = null, curRGBA = null, curW = 0, curH = 0;
+let worker = null, result = null, curStyle = 'oil';
+
+/* ---------------- 版本自检 ----------------
+ * 静态资源被 CDN 缓存住时，可能出现「新页面 + 旧脚本」。
+ *
+ * 这里不再靠 worker 握手（网络慢时握手容易超时误判），而是直接检查
+ * 页面已加载的 render.js 是不是新版——它是 <script> 同步引入的，
+ * 浏览器要么拿到新版要么拿到旧版，判断确定、无竞态。
+ * worker 那侧的兜底是生成完成后对 result.style 的校验。
+ */
+(function checkAssetVersion() {
+  const ok = !!(window.OILRender && window.OILRender.paintGround && window.OILRender.preprocess);
+  if (!ok) {
+    setTimeout(() => {
+      if (curImg) return;
+      setStat('页面脚本未正确加载，请按 Ctrl+F5（Mac 为 ⌘+Shift+R）强制刷新。', true);
+    }, 0);
+  }
+})();
+
+/* ---------------- 风格卡片 ---------------- */
+/* 工序名在这里维护一份展示用的（网页端不加载 core.js）；
+ * 与 core.js 里各风格的 steps 保持一致即可。 */
+const STYLE_STEPS = {
+  oil: ['底色', '起稿', '单色底层', '铺大色', '塑造', '塑形', '罩染', '干扫', '细部', '提白'],
+  lineart: ['定形', '勾主线', '结构线', '细描', '点睛'],
+  posterize: ['铺底色', '暗部色块', '中间调', '亮部', '点缀'],
+  pencil: ['起形', '铺调子', '排线', '交叉线', '提亮'],
+  ink: ['铺水', '勾线', '渲染', '皴擦', '点苔', '留白'],
+  dot: ['底色', '中层', '密集', '边界', '高光'],
+  neon: ['铺底', '主线', '细线', '光晕', '亮点'],
+  pixel: ['低分辨率', '中分辨率', '细化', '高光格'],
+};
+
+const STYLE_META = [
+  { key: 'oil',       label: '油画',  desc: '十道古典工序，起收锋、厚涂、罩染、干扫' },
+  { key: 'lineart',   label: '线描',  desc: '近黑底上的细白线，只勾结构，像版画稿' },
+  { key: 'posterize', label: '色块',  desc: '分层平涂的硬边色块，限量配色海报感' },
+  { key: 'pencil',    label: '素描',  desc: '纸底石墨排线，暗部交叉线压深' },
+  { key: 'ink',       label: '水墨',  desc: '宣纸上的墨色，浓淡枯湿、留白透气' },
+  { key: 'dot',       label: '点彩',  desc: '密集小色点堆成画面，靠眼睛混色' },
+  { key: 'neon',      label: '霓虹',  desc: '深底发光线条，像通电的招牌' },
+  { key: 'pixel',     label: '像素',  desc: '量化成方格逐格点亮，复古游戏感' },
+];
+
+(function buildStyleCards() {
+  const box = $('styleBox');
+  for (const s of STYLE_META) {
+    const el = document.createElement('div');
+    el.className = 'stile' + (s.key === curStyle ? ' on' : '');
+    el.dataset.key = s.key;
+    el.innerHTML = '<div class="nm"><span class="dot"></span>' + s.label + '</div>' +
+      '<div class="ds">' + s.desc + '</div>' +
+      '<div class="chips">' + (STYLE_STEPS[s.key] || []).map(t => '<i>' + t + '</i>').join('') + '</div>';
+    el.onclick = () => selectStyle(s.key);
+    box.appendChild(el);
+  }
+})();
+
+function selectStyle(key) {
+  curStyle = key;
+  for (const el of $('styleBox').children) el.classList.toggle('on', el.dataset.key === key);
+  const s = STYLE_META.find(x => x.key === key);
+  $('flowLine').textContent = s.label + ' · ' + (STYLE_STEPS[key] || []).join(' → ');
+
+  const LAYER_HINT = {
+    posterize: '色块风格用它决定配色档数（5 档最稳，8 档层次最多）。',
+    pencil: '素描风格用 5 档即可，影响不大。',
+    dot: '点彩不用分层，改这个只影响内部统计。',
+    pixel: '像素风格用不到分层，改这个无影响。',
+    neon: '霓虹风格按亮度取色，分层影响很小。',
+    ink: '水墨按墨色浓淡分档，5 档最自然。',
+  };
+  $('layerHint').textContent = LAYER_HINT[key] || '色彩分层的层数。';
+
+  const SCALE_HINT = {
+    posterize: '往左＝保留更多小色块、边缘更贴原图；往右＝把小色块并掉，画面更概括。',
+    lineart: '往左＝线条更密更细；往右＝只留主线。',
+    pencil: '往左＝排线更密；往右＝笔触更粗犷。',
+    ink: '往左＝墨色更细碎；往右＝笔触更宽，更像大笔挥洒。',
+    dot: '往左＝点更密更小（更接近照片）；往右＝点更大更疏（更像修拉）。',
+    neon: '往左＝线条更多更密；往右＝只留最亮的主干。',
+    pixel: '往左＝格子更多更清晰；往右＝格子更大更复古。',
+  };
+  $('scaleHint').textContent = SCALE_HINT[key] || '数值越小笔触越细越密，细节越清楚，文件也越大。';
+
+  if (result) { $('result').style.display = 'none'; }
+}
+
+/* ---------------- 移动端自适应 ---------------- */
+(function adaptMobile() {
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+                   || (window.matchMedia && window.matchMedia('(max-width:720px)').matches);
+  const lowMem = (navigator.deviceMemory && navigator.deviceMemory <= 4) || isMobile;
+  if (lowMem) {
+    const sel = $('workRes');
+    if (sel && sel.value === '1400') { sel.value = '1000'; }
+  }
+})();
+
+/* ---------------- 文件选择 ---------------- */
+const drop = $('drop'), fileIn = $('file'), pickBtn = $('pickBtn');
+drop.onclick = () => fileIn.click();
+if (pickBtn) pickBtn.onclick = (e) => { e.stopPropagation(); fileIn.click(); };
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('on');
+}));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove('on');
+}));
+drop.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) takeFile(f);
+});
+fileIn.onchange = () => { if (fileIn.files[0]) takeFile(fileIn.files[0]); };
+
+async function takeFile(f) {
+  if (!f.type.startsWith('image/')) { alert('请选择图片文件'); return; }
+  curFile = f;
+  const url = URL.createObjectURL(f);
+  $('thumb').src = url;
+  $('thumbWrap').style.display = 'block';
+  $('fn').textContent = f.name;
+  $('fs').textContent = (f.size / 1024 / 1024).toFixed(1) + ' MB';
+
+  const img = new Image();
+  img.decoding = 'sync';
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  curImg = img; curW = img.naturalWidth; curH = img.naturalHeight;
+  $('fs').textContent += ` · ${curW}×${curH}`;
+  $('go').disabled = false;
+  setStat('已选择，点「开始生成」');
+}
+
+function setStat(t, err) {
+  const el = $('pstat');
+  el.textContent = t;
+  el.className = 'stat' + (err ? ' err' : '');
+}
+function setProg(p) { $('pbar').style.width = Math.max(0, Math.min(100, p)) + '%'; }
+
+$('scale').oninput = e => { $('scaleV').textContent = (+e.target.value).toFixed(2); };
+$('secs').oninput = e => { $('secsV').textContent = e.target.value + 's'; };
+$('rois').oninput = e => { $('roisV').textContent = e.target.value; };
+
+/* ---------------- 生成 ---------------- */
+$('go').onclick = async () => {
+  if (!curImg) return;
+  $('go').disabled = true;
+  $('result').style.display = 'none';
+  setProg(2); setStat('读取像素…');
+
+  const MAX_PIXELS = 16e6;
+  let srcW = curW, srcH = curH, srcImg = curImg;
+  if (curW * curH > MAX_PIXELS) {
+    const k = Math.sqrt(MAX_PIXELS / (curW * curH));
+    srcW = Math.round(curW * k); srcH = Math.round(curH * k);
+    const tc = document.createElement('canvas');
+    tc.width = srcW; tc.height = srcH;
+    tc.getContext('2d').drawImage(curImg, 0, 0, srcW, srcH);
+    srcImg = tc;
+    setStat('超大图，已自动缩到 ' + srcW + '×' + srcH + ' 处理…');
+  }
+  const cv = document.createElement('canvas');
+  cv.width = srcW; cv.height = srcH;
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  cx.drawImage(srcImg, 0, 0);
+  const data = cx.getImageData(0, 0, srcW, srcH).data;
+  curRGBA = new Uint8ClampedArray(data.buffer.slice(0));
+  const procW = srcW, procH = srcH;
+
+  const opts = {
+    style: curStyle,
+    layers: +$('layers').value,
+    scale: +$('scale').value,
+    seconds: +$('secs').value,
+    autoRois: +$('rois').value,
+    workRes: +$('workRes').value,
+    seed: +$('seed').value || 20261109,
+  };
+
+  if (worker) worker.terminate();
+  // 带版本号，避免浏览器命中 4 小时强缓存里的旧 worker
+  worker = new Worker('worker.js?v=' + encodeURIComponent(window.OIL_BUILD || Date.now()));
+  worker.onmessage = e => {
+    const m = e.data;
+    if (m.type === 'progress') {
+      setProg(m.progress);
+      setStat(m.phase + ' · ' + m.progress + '%');
+    } else if (m.type === 'done') {
+      result = m.payload;
+      // 旧版 worker 不认识 style 字段：它只会跑油画，返回的 payload 里没有 styleLabel。
+      // 这种情况必须明确报错，否则用户会以为「选了风格却没生效」。
+      if (!result.styleLabel || !result.style) {
+        setStat('脚本版本过旧：浏览器用了缓存里的旧 worker.js。请强制刷新（Ctrl+F5 / ⌘+Shift+R）后重试。', true);
+        $('go').disabled = false; setProg(0);
+        return;
+      }
+      if (result.style !== curStyle) {
+        setStat('风格未生效（期望 ' + curStyle + '，实际 ' + result.style + '）。请强制刷新页面后重试。', true);
+        $('go').disabled = false; setProg(0);
+        return;
+      }
+      window.result = result;
+      window.curStyle = curStyle;
+      setStat('完成 · ' + result.styleLabel + ' · 用时 ' + result.elapsed.toFixed(1) + 's');
+      showResult(result);
+      $('go').disabled = false;
+      $('go').textContent = '再生成一次';
+    } else if (m.type === 'error') {
+      setStat('出错：' + m.message.split('\n')[0], true);
+      $('go').disabled = false; setProg(0);
+      console.error(m.message);
+    }
+  };
+  worker.onerror = e => {
+    setStat('Worker 出错：' + e.message, true);
+    $('go').disabled = false;
+  };
+  worker.postMessage({ type: 'generate', rgba: curRGBA, w: procW, h: procH, opts }, [curRGBA.buffer]);
+};
+
+/* ---------------- 结果展示 + 实时画布 ---------------- */
+function showResult(r) {
+  $('result').style.display = 'block';
+  $('hint').style.display = 'none';
+  setTimeout(() => {
+    try { $('result').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
+  }, 150);
+  $('rStrokes').textContent = r.strokes.length.toLocaleString();
+  $('rUnit').textContent = r.style === 'posterize' ? '块色域' : '条笔触';
+  const ok = r.breaks === 0 ? '<b style="color:var(--ok)">通过</b>' : '<b style="color:var(--err)">' + r.breaks + ' 处断裂</b>';
+  const totalMB = (new Blob([JSON.stringify(r.strokes)]).size / 1024 / 1024).toFixed(1);
+  $('rKv').innerHTML =
+    '<span>风格</span><b>' + r.styleLabel + '</b>' +
+    '<span>细节笔</span><b>' + r.detail.toLocaleString() + '</b>' +
+    '<span>时长</span><b>' + r.total.toFixed(1) + 's</b>' +
+    '<span>画布</span><b>' + r.w + '×' + r.h + '</b>' +
+    '<span>笔触数据</span><b>~' + totalMB + ' MB</b>' +
+    '<span>串行校验</span>' + ok;
+  startLivePreview(r);
+}
+
+let liveRAF = null, liveIdx = 0, liveT = 0, liveDone = false;
+let LP = [], LCOL = [], LITE = [], LALP = [], LKIN = [];
+let liveCv, liveCtx, liveBase, liveBctx, liveSC = 1;
+let livePaused = false;
+
+function startLivePreview(r) {
+  $('liveWrap').style.display = 'block';
+  const maxW = Math.min(1000, $('result').clientWidth - 40);
+  const sc = maxW / r.w;
+  const dispW = Math.round(r.w * sc), dispH = Math.round(r.h * sc);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  liveCv = $('live');
+  liveCv.width = Math.round(dispW * dpr);
+  liveCv.height = Math.round(dispH * dpr);
+  liveCv.style.width = dispW + 'px';
+  liveCv.style.height = dispH + 'px';
+  liveCtx = liveCv.getContext('2d', { alpha: false });
+
+  liveBase = document.createElement('canvas');
+  liveBase.width = liveCv.width; liveBase.height = liveCv.height;
+  liveBctx = liveBase.getContext('2d', { alpha: false });
+  liveSC = (liveCv.width / r.w);
+
+  // 预处理成绘制期结构
+  const pre = OILRender.preprocess(r.strokes);
+  LP = new Array(pre.length); LCOL = new Array(pre.length);
+  LITE = new Array(pre.length); LALP = new Array(pre.length); LKIN = new Array(pre.length);
+  for (let i = 0; i < pre.length; i++) {
+    LP[i] = pre[i].pts; LCOL[i] = pre[i].color; LITE[i] = pre[i].lite;
+    LALP[i] = pre[i].alpha; LKIN[i] = pre[i].kind;
+  }
+
+  // 底色（按风格）
+  OILRender.paintGround(liveBctx, liveBase.width, liveBase.height, r.ground);
+
+  $('liveStages').innerHTML = r.stages.map((s, i) =>
+    '<span class="stgChip" data-i="' + i + '">' + s.label + '</span>').join('');
+
+  liveIdx = 0; liveT = 0; liveDone = false; livePaused = false;
+  $('liveState').textContent = '绘制中';
+  $('liveState').style.cssText = 'background:rgba(217,164,65,.14);color:#d9a441;border-color:rgba(217,164,65,.3)';
+  if (liveRAF) cancelAnimationFrame(liveRAF);
+
+  let t0 = null;
+  const loop2 = now => {
+    if (t0 === null) t0 = now;
+    if (!livePaused) advanceLive((now - t0) / 1000);
+    liveRAF = requestAnimationFrame(loop2);
+  };
+  liveRAF = requestAnimationFrame(loop2);
+}
+
+function liveStroke(c, i, prog) {
+  OILRender.drawStroke(c, result.strokes, liveSC, i, prog,
+    { pts: LP[i], color: LCOL[i], lite: LITE[i], alpha: LALP[i], kind: LKIN[i] });
+}
+
+function advanceLive(t) {
+  if (!result) return;
+  const N = result.strokes.length;
+  liveT = Math.min(t, result.total + 0.3);
+  while (liveIdx < N && result.strokes[liveIdx][3] <= liveT) {
+    liveStroke(liveBctx, liveIdx, 1);
+    liveIdx++;
+  }
+  liveCtx.drawImage(liveBase, 0, 0);
+  if (liveIdx < N) {
+    const s = result.strokes[liveIdx];
+    const pr = Math.max(0.02, Math.min(1, (liveT - s[3]) / Math.max(s[4], 1e-6)));
+    liveStroke(liveCtx, liveIdx, pr);
+  } else if (!liveDone) {
+    liveDone = true;
+    $('liveState').textContent = '完成';
+    $('liveState').style.cssText = 'background:rgba(110,220,150,.13);color:#8ee6a8;border-color:rgba(110,220,150,.3)';
+  }
+  $('liveCount').textContent = liveIdx + ' / ' + N;
+  $('liveSec').textContent = liveT.toFixed(1) + 's / ' + result.total.toFixed(1) + 's';
+  $('liveBar').style.width = (Math.min(1, liveT / result.total) * 100).toFixed(2) + '%';
+  let act = 0;
+  for (let i = 0; i < result.stages.length; i++) if (result.stages[i].t <= liveT) act = i;
+  const chips = $('liveStages').children;
+  for (let i = 0; i < chips.length; i++) {
+    const s = result.stages[i];
+    chips[i].className = 'stgChip' + (i === act ? ' on' : (s.t < liveT ? ' done' : ''));
+  }
+}
+
+$('replay').onclick = () => {
+  if (!result) return;
+  liveIdx = 0; liveT = 0; liveDone = false;
+  OILRender.paintGround(liveBctx, liveBase.width, liveBase.height, result.ground);
+  $('liveState').textContent = '绘制中';
+  $('liveState').style.cssText = 'background:rgba(217,164,65,.14);color:#d9a441;border-color:rgba(217,164,65,.3)';
+  let t0 = null;
+  if (liveRAF) cancelAnimationFrame(liveRAF);
+  const loop = now => {
+    if (t0 === null) t0 = now;
+    if (!livePaused) advanceLive((now - t0) / 1000);
+    liveRAF = requestAnimationFrame(loop);
+  };
+  liveRAF = requestAnimationFrame(loop);
+};
+
+/* ---------------- 下载 ---------------- */
+/* 导出终帧：不用屏幕预览画布（它最宽只有 1000px，还受设备像素比影响），
+ * 而是按原图分辨率离屏重绘一遍，保证下载到的是全尺寸图。 */
+$('dlPreview').onclick = () => {
+  if (!result) return;
+  const btn = $('dlPreview');
+  const old = btn.textContent;
+  const mult = +(  document.getElementById('dlRes').value || 1);
+  btn.disabled = true;
+  btn.textContent = '导出中…';
+  // 让按钮状态先渲染出来，再做重计算
+  setTimeout(() => {
+    try {
+      const outW = Math.round(result.w * mult), outH = Math.round(result.h * mult);
+      const blob = renderFullFrame(result, mult);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'brushtrokes-' + result.style + '-' + outW + 'x' + outH + '.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      setStat('已导出终帧 · ' + outW + '×' + outH + ' · ' + (blob.size / 1048576).toFixed(1) + ' MB');
+    } catch (e) {
+      alert('导出失败：' + e.message);
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = old;
+    }
+  }, 30);
+};
+
+/* 按原图尺寸（或指定倍数）把全部笔触重绘到离屏画布，返回 PNG Blob */
+function renderFullFrame(r, mult) {
+  const k = mult || 1;
+  const W = Math.round(r.w * k), H = Math.round(r.h * k);
+  // 防御：过大尺寸容易 OOM，给个上限（约 8000×8000）
+  const MAX = 8000;
+  const shrink = Math.min(1, MAX / Math.max(W, H));
+  const cw = Math.round(W * shrink), ch = Math.round(H * shrink);
+
+  const cv = document.createElement('canvas');
+  cv.width = cw; cv.height = ch;
+  const c = cv.getContext('2d', { alpha: false });
+  OILRender.paintGround(c, cw, ch, r.ground);
+  const sc = cw / r.w;
+  const pre = OILRender.preprocess(r.strokes);
+  for (let i = 0; i < r.strokes.length; i++) {
+    OILRender.drawStroke(c, r.strokes, sc, i, 1, pre[i]);
+  }
+  // toBlob 是同步编码，用 dataURL 兜底以便在无回调场景也能拿到
+  const durl = cv.toDataURL('image/png');
+  return dataURLtoBlob(durl);
+}
+
+function dataURLtoBlob(durl) {
+  const parts = durl.split(',');
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const bin = atob(parts[1]);
+  const len = bin.length;
+  const buf = new Uint8Array(len);
+  for (let i = 0; i < len; i++) buf[i] = bin.charCodeAt(i);
+  return new Blob([buf], { type: mime });
+}
+
+$('dlPlayer').onclick = async () => {
+  if (!result) return;
+  $('dlPlayer').disabled = true;
+  $('dlPlayer').textContent = '生成中…';
+  try {
+    const blob = await buildPlayerBlob(result, curFile);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'brushtrokes-' + result.style + '-player.html';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+  } catch (e) {
+    alert('生成播放器失败：' + e.message);
+  } finally {
+    $('dlPlayer').disabled = false;
+    $('dlPlayer').textContent = '⬇ 下载播放器 HTML';
+  }
+};
+
+async function buildPlayerBlob(r, file) {
+  const buf = await file.arrayBuffer();
+  const b64 = await new Promise(res => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(',')[1]);
+    fr.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
+  });
+  const mime = file.type || 'image/png';
+  const data = {
+    w: r.w, h: r.h, total: r.total,
+    style: r.style, styleLabel: r.styleLabel, ground: r.ground,
+    stages: r.stages.map(s => ({ name: s.name, label: s.label, t: s.t, n: s.n })),
+    strokes: r.strokes,
+  };
+  const V = '?v=' + encodeURIComponent(window.OIL_BUILD || Date.now());
+  const [tpl, renderSrc] = await Promise.all([
+    fetch('player-template.html' + V).then(x => x.text()),
+    fetch('render.js' + V).then(x => x.text()),
+  ]);
+  const html = tpl
+    .replace('__RENDERJS__', () => renderSrc)
+    .replace('__DATA__', () => JSON.stringify(data))
+    .replace(/__IMGMIME__/g, () => mime)
+    .replace(/__IMG__/g, () => b64)
+    .replace(/__STAGEMETA__/g, () => JSON.stringify(r.stages))
+    .replace(/__N__/g, () => r.strokes.length.toLocaleString())
+    .replace(/__NSTAGE__/g, () => String(r.stages.length))
+    .replace(/__TOT__/g, () => r.total.toFixed(1))
+    .replace(/__IW__/g, () => String(r.w))
+    .replace(/__IH__/g, () => String(r.h))
+    .replace(/__STYLELABEL__/g, () => r.styleLabel || '绘画')
+    .replace(/__STYLESEQ__/g, () => r.stages.map(s => s.label).join(' → '))
+    .replace(/__UNIT__/g, () => (r.style === 'posterize' ? '块色域' : '条笔触'));
+  return new Blob([html], { type: 'text/html;charset=utf-8' });
+}
+</script>
+</body>
+</html>
