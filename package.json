@@ -1,0 +1,12 @@
+{
+  "name": "brushtrokes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "把任意图片重绘成一笔一笔画出来的过程动画，八种风格，纯前端",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test test/",
+    "check": "node test/check-assets.js"
+  },
+  "license": "MIT"
+}

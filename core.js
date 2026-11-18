@@ -72,7 +72,10 @@
     return out;
   }
 
-  /* ---------------------------------------------------------------- 降采样 */
+  /* ---------------------------------------------------------------- 降采样
+   * 按 alpha 加权：透明像素不参与平均，否则透明区常见的 RGB=0 会把整块拉黑，
+   * 让 k-means / Canny 在 PNG 透明边界上造出伪轮廓。
+   * 整块全透明时退化为普通平均（结果无意义但不会 NaN）。 */
   function downscale(rgba, w, h, tw, th) {
     const out = new Float32Array(tw * th * 3);
     const fx = w / tw, fy = h / th;
@@ -80,15 +83,18 @@
       const y0 = Math.floor(y * fy), y1 = Math.min(h, Math.max(y0 + 1, Math.floor((y + 1) * fy)));
       for (let x = 0; x < tw; x++) {
         const x0 = Math.floor(x * fx), x1 = Math.min(w, Math.max(x0 + 1, Math.floor((x + 1) * fx)));
-        let r = 0, g = 0, b = 0, n = 0;
+        let r = 0, g = 0, b = 0, n = 0, wa = 0, ar = 0, ag = 0, ab = 0;
         for (let yy = y0; yy < y1; yy++) {
           for (let xx = x0; xx < x1; xx++) {
             const i = (yy * w + xx) * 4;
+            const a = rgba[i + 3];
             r += rgba[i]; g += rgba[i + 1]; b += rgba[i + 2]; n++;
+            if (a > 0) { wa += a; ar += rgba[i] * a; ag += rgba[i + 1] * a; ab += rgba[i + 2] * a; }
           }
         }
         const o = (y * tw + x) * 3;
-        out[o] = r / n; out[o + 1] = g / n; out[o + 2] = b / n;
+        if (wa > 0) { out[o] = ar / wa; out[o + 1] = ag / wa; out[o + 2] = ab / wa; }
+        else { out[o] = r / n; out[o + 1] = g / n; out[o + 2] = b / n; }
       }
     }
     return out;
@@ -393,13 +399,15 @@
   function inflateLoop(pts, d) {
     const n = pts.length / 2;
     if (n < 3 || d <= 0) return Array.from(pts);
-    // 先判方向，保证「向外」一致
+    // 先判方向，保证「向外」一致。
+    // 屏幕坐标 y 向下，(x_i - x_j, y_i - y_j) 逆时针旋转后得到的外法线是 (ay, -ax)，
+    // 而 (-ay, ax) 是内法线。所以 area2 >= 0（CW）时法线需要额外取反才朝外。
     let area2 = 0;
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
       area2 += pts[i * 2] * pts[j * 2 + 1] - pts[j * 2] * pts[i * 2 + 1];
     }
-    const sign = area2 >= 0 ? 1 : -1;
+    const sign = area2 >= 0 ? -1 : 1;
     const out = new Array(n * 2);
     for (let i = 0; i < n; i++) {
       const ip = (i - 1 + n) % n, inx = (i + 1) % n;

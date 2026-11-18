@@ -12,9 +12,36 @@ self.onmessage = function (e) {
   const post = (phase, progress, extra) =>
     self.postMessage(Object.assign({ type: 'progress', phase, progress }, extra || {}));
 
+  if (!(w > 0) || !(h > 0) || !rgba || rgba.length !== w * h * 4) {
+    self.postMessage({ type: 'error', message: '图像数据无效（尺寸 ' + w + 'x' + h + '，字节 ' + (rgba && rgba.length) + '）' });
+    return;
+  }
+
   try {
     const styleKey = (opts.style && OILCore.STYLES[opts.style]) ? opts.style : 'oil';
     const styleDef = OILCore.STYLES[styleKey];
+
+    /* 透明像素先合成到该风格的画布底色上。
+     * 否则透明区的 RGB（PNG 里通常是 0）会被当成纯黑参与分层、Canny 和取色，
+     * 带透明背景的图会出黑块和伪轮廓。合成后语义也更合理：
+     * 「透明」= 露出画布，线描/霓虹的深底正好对应。 */
+    const groundHex = (styleDef.ground && styleDef.ground.color) || '#181613';
+    const gr = parseInt(groundHex.slice(1, 3), 16) || 0;
+    const gg = parseInt(groundHex.slice(3, 5), 16) || 0;
+    const gb = parseInt(groundHex.slice(5, 7), 16) || 0;
+    let hasAlpha = false;
+    for (let i = 3; i < rgba.length; i += 4) if (rgba[i] !== 255) { hasAlpha = true; break; }
+    if (hasAlpha) {
+      for (let i = 0; i < rgba.length; i += 4) {
+        const a = rgba[i + 3];
+        if (a === 255) continue;
+        const k = a / 255;
+        rgba[i] = rgba[i] * k + gr * (1 - k);
+        rgba[i + 1] = rgba[i + 1] * k + gg * (1 - k);
+        rgba[i + 2] = rgba[i + 2] * k + gb * (1 - k);
+        rgba[i + 3] = 255;
+      }
+    }
 
     post('分析画面', 4);
     const A = OILCore.analyze(rgba, w, h, opts);

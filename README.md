@@ -68,12 +68,13 @@
 
 | 文件 | 说明 |
 |---|---|
-| `index.html` | 主页面（上传、选风格、调参、实时预览、下载） |
+| `index.html` | 主页面（上传、选风格、调参、实时预览、下载），含内联的版本号 |
 | `core.js` | 分析 + 八种风格的笔触生成 + 时间轴 |
 | `render.js` | 共用的笔触渲染器（网页预览与播放器共用，保证所见即所得） |
 | `worker.js` | Web Worker，后台生成不卡界面 |
 | `player-template.html` | 下载用的单文件播放器模板（内联 `render.js`） |
-| `build.js` | 资源版本号（见下方「更新后请改版本号」） |
+| `test/core.test.js` | 算法回归测试（`node --test`） |
+| `test/check-assets.js` | 资源一致性检查（版本号 / 风格元数据 / 可访问性约定） |
 | `.gitattributes` | 统一用 LF，避免 Windows 上自动转 CRLF 产生无意义 diff |
 | `.github/workflows/deploy.yml` | GitHub Pages 自动部署 |
 
@@ -84,18 +85,29 @@ GitHub Pages 给静态资源发的是 `Cache-Control: max-age=14400`（4 小时�
 老访客会在最长 4 小时内继续用旧脚本**，表现就是「新页面 + 旧 worker」：
 选了线描却还是出油画、风格一栏显示 `undefined`。
 
-为此 `index.html` 里所有脚本引用都带 `?v=` 查询串，由 `build.js` 的 `OIL_BUILD` 统一提供：
+为此所有脚本引用都带 `?v=` 查询串，版本号统一由 `index.html` 顶部这段内联脚本提供：
 
 ```js
-window.OIL_BUILD = '20261111-brushtrokes';
+window.OIL_BUILD = '20261118-brushtrokes';
 ```
 
 **每次改动这些脚本，就把 `OIL_BUILD` 换一个新值**（如日期或递增序号），
 浏览器会把它当成全新 URL 去取。`worker.js` 也会把这个查询串透传给 `importScripts('core.js')`，
 保证 worker 和 core 版本一致。
 
+> ⚠️ **版本号必须内联在 `index.html` 里，不能放在单独的 `build.js`。**
+> 之前正是放在 `build.js` 里，结果 `build.js` 自身也被缓存 4 小时 ——
+> 老访客读到的永远是旧版本号，于是 `render.js` / `worker.js` 也永远命中旧缓存，
+> 整套机制等于没做。（`build.js` 已因此移除。）
+
 生成完成时页面会校验 `result.style` 是否等于用户选的风格——旧版 worker 不认识
 `style` 字段，不匹配就明确报错提示强制刷新，**不会静默输出一张油画糊弄过去**。
+
+### 导出终帧的尺寸上限
+
+导出终帧时长边上限为 **8000px**（防止 OOM 和长时间阻塞主线程）。
+超过这个尺寸会自动等比缩小，**并在界面上明确提示**，文件名也用实际输出尺寸，
+不会出现「标称 3 倍、实际被缩过」的情况。
 
 
 ## 技术实现
@@ -161,6 +173,29 @@ python -m http.server 8000
 
 > 注意：不要用 `file://` 直接双击 `index.html`，Web Worker 和 fetch 会被浏览器拦截。
 
+### 跑测试
+
+需要 Node 18+（用到内置的 `node:test`，不装任何依赖）：
+
+```bash
+npm test        # 算法回归测试
+npm run check   # 资源一致性检查（版本号 / 风格元数据 / 占位符 / 可访问性约定）
+```
+
+`npm test` 覆盖这些容易改坏的约定：
+
+- **色块外扩必须向外**（写反会让相邻色块之间露出底色缝）
+- **时间轴严格串行**：`start[i] === start[i-1] + dur[i-1]`
+- **八种风格**都能产出合法笔触，路径里不含 `NaN`
+- **透明像素**不能把画面拉黑
+- 极小图 / 极扁极长图不崩
+
+`npm run check` 是纯静态核对，专门抓「改一处忘另一处」：风格名在
+`index.html` 和 `core.js` 里各有一份、播放器占位符要全被替换、
+脚本引用都要带版本号、脚本正文不能出现字面 `</script>`。
+
+改完代码后建议两条都跑一遍再提交。
+
 ## 许可证
 
-MIT
+MIT · 见 [LICENSE](LICENSE)

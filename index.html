@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f0d0b">
 <title>Brushtrokes · 笔触工坊 — 图片逐笔重绘</title>
-<meta name="description" content="在浏览器里把图片按不同绘画风格逐笔重绘成动画：油画、线描、色块、素描。全部本地处理，不上传。">
+<meta name="description" content="在浏览器里把任意图片重绘成逐笔动画，内置八种风格：油画、线描、色块、素描、水墨、点彩、霓虹、像素。全部本地处理，图片不上传，可导出高清终帧与单文件播放器。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Brushtrokes · 笔触工坊 — 图片逐笔重绘">
+<meta property="og:description" content="八种风格把图片重绘成逐笔动画：油画 / 线描 / 色块 / 素描 / 水墨 / 点彩 / 霓虹 / 像素。纯前端，图片不上传。">
+<meta property="og:url" content="https://tyuecode.github.io/brushtrokes/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Brushtrokes · 笔触工坊 — 图片逐笔重绘">
+<meta name="twitter:description" content="八种风格把图片重绘成逐笔动画，纯前端，图片不上传。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23d9a441'/%3E%3Cpath d='M7 22c4-9 8-12 11-12s5 3 7 12' stroke='%2317130c' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   *{box-sizing:border-box}
@@ -140,9 +147,12 @@
   a{color:var(--gold2);text-decoration:none}
   a:hover{text-decoration:underline}
   .adv{margin-top:10px;border-top:1px solid var(--line);padding-top:14px}
-  .adv summary{cursor:pointer;font-size:12.5px;color:var(--dim);outline:none;
+  .adv summary{cursor:pointer;font-size:12.5px;color:var(--dim);
     letter-spacing:.3px;transition:color .18s}
   .adv summary:hover{color:var(--gold2)}
+  /* 键盘焦点必须可见：只在键盘导航时显示，鼠标点击不额外描边 */
+  :focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+  #drop:focus-visible,.stile:focus-visible{border-radius:13px}
   .files{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
   .files a,.files button{flex:1;min-width:124px;text-align:center;padding:11px;border-radius:10px;
     background:linear-gradient(180deg,#241e17,#1b1611);border:1px solid var(--line2);
@@ -223,26 +233,26 @@
     <div>
       <div class="card">
         <h2>① 选一张图</h2>
-        <div id="drop">
-          <div class="ico">🖼</div>
+        <div id="drop" role="button" tabindex="0" aria-label="选择或拖入图片">
+          <div class="ico" aria-hidden="true">🖼</div>
           <div class="t1">把图片拖到这里，或点击选择</div>
           <div class="t2">PNG / JPG / WEBP · 图片不会上传，全部在本机处理</div>
           <button type="button" class="pickBtn" id="pickBtn">选择图片</button>
         </div>
         <input type="file" id="file" accept="image/*" hidden>
         <div id="thumbWrap">
-          <img id="thumb" alt="preview">
+          <img id="thumb" alt="已选图片预览">
           <div class="fname"><span id="fn">–</span><span id="fs"></span></div>
         </div>
       </div>
 
       <div class="card" style="margin-top:16px">
         <h2>② 选风格</h2>
-        <div class="styles" id="styleBox"></div>
+        <div class="styles" id="styleBox" role="radiogroup" aria-label="选择绘画风格"></div>
 
         <h2 style="margin-top:18px">③ 调参数</h2>
         <div class="row">
-          <label>细腻程度</label>
+          <label for="scale">细腻程度</label>
           <input type="range" id="scale" min="0.55" max="1.8" step="0.05" value="1">
           <div class="val" id="scaleV">1.00</div>
         </div>
@@ -250,12 +260,12 @@
           数值越小笔触越细越密，细节越清楚，文件也越大。
         </div>
         <div class="row">
-          <label>动画时长</label>
+          <label for="secs">动画时长</label>
           <input type="range" id="secs" min="20" max="240" step="5" value="90">
           <div class="val" id="secsV">90s</div>
         </div>
         <div class="row">
-          <label>处理精度</label>
+          <label for="workRes">处理精度</label>
           <select id="workRes">
             <option value="1000">快（1000px）</option>
             <option value="1400" selected>标准（1400px）</option>
@@ -270,7 +280,7 @@
         <details class="adv">
           <summary>高级选项</summary>
           <div class="row">
-            <label>明暗分层</label>
+            <label for="layers">明暗分层</label>
             <select id="layers">
               <option>3</option><option>4</option><option selected>5</option>
               <option>6</option><option>7</option>
@@ -281,12 +291,12 @@
             色块风格用它决定配色档数。
           </div>
           <div class="row">
-            <label>细节区数量</label>
+            <label for="rois">细节区数量</label>
             <input type="range" id="rois" min="0" max="14" step="1" value="6">
             <div class="val" id="roisV">6</div>
           </div>
           <div class="row">
-            <label>随机种子</label>
+            <label for="seed">随机种子</label>
             <input type="number" id="seed" value="20261109" step="1" style="width:120px">
             <div class="val"></div>
           </div>
@@ -319,7 +329,7 @@
 
         <div class="kv" id="rKv"></div>
         <div class="row" style="margin:12px 0 4px">
-          <label>导出分辨率</label>
+          <label for="dlRes">导出分辨率</label>
           <select id="dlRes">
             <option value="1" selected>原图尺寸</option>
             <option value="2">2 倍（高清）</option>
@@ -369,8 +379,28 @@
   </footer>
 </div>
 
-<script src="build.js"></script>
-<script src="render.js"></script>
+<script>
+/* ---------------------------------------------------------------- 版本号
+ * 改脚本后请把这里换成新值（如日期或递增序号）。这是「缓存清除」的唯一来源。
+ *
+ * 为什么必须内联、不能用单独的 build.js：GitHub Pages 给静态资源发
+ * Cache-Control: max-age=14400（4 小时）强缓存且 URL 无指纹。如果版本号
+ * 存在 build.js 里，那 build.js 自身也会被缓存 —— 老访客永远读到旧版本号，
+ * 于是 render.js / worker.js 也永远命中旧缓存，整套机制形同虚设。
+ * 内联在 index.html 里，浏览器每次都会重新取 HTML，版本号才是新鲜的。
+ *
+ * 用同步注入而非动态 appendChild：需要保证执行顺序，让下面的内联脚本
+ * 能立刻用到 OILRender。注意脚本正文里不能出现字面的标签名加左尖括号，
+ * 否则 HTML 解析器会把脚本提前截断。
+ */
+window.OIL_BUILD = '20261118-brushtrokes';
+(function () {
+  var s = document.createElement('script');
+  s.src = 'render.js?v=' + encodeURIComponent(window.OIL_BUILD);
+  s.async = false;
+  document.head.appendChild(s);
+})();
+</script>
 <script>
 const $ = id => document.getElementById(id);
 let curFile = null, curImg = null, curRGBA = null, curW = 0, curH = 0;
@@ -379,19 +409,27 @@ let worker = null, result = null, curStyle = 'oil';
 /* ---------------- 版本自检 ----------------
  * 静态资源被 CDN 缓存住时，可能出现「新页面 + 旧脚本」。
  *
- * 这里不再靠 worker 握手（网络慢时握手容易超时误判），而是直接检查
- * 页面已加载的 render.js 是不是新版——它是 <script> 同步引入的，
- * 浏览器要么拿到新版要么拿到旧版，判断确定、无竞态。
+ * render.js 由上面的内联脚本带 ?v= 引入（异步）。这里等它真正可用再判断：
+ * 若迟迟加载不到，说明脚本路径或缓存出了问题，给出明确提示而不是让用户
+ * 点到「开始生成」才发现 OILRender 是 undefined。
  * worker 那侧的兜底是生成完成后对 result.style 的校验。
  */
+function whenRenderReady(cb) {
+  if (window.OILRender && window.OILRender.paintGround) return cb(null);
+  let tries = 0;
+  const tick = () => {
+    if (window.OILRender && window.OILRender.paintGround) return cb(null);
+    if (++tries > 100) return cb(new Error('render.js 加载超时'));
+    setTimeout(tick, 50);
+  };
+  tick();
+}
 (function checkAssetVersion() {
-  const ok = !!(window.OILRender && window.OILRender.paintGround && window.OILRender.preprocess);
-  if (!ok) {
-    setTimeout(() => {
-      if (curImg) return;
+  whenRenderReady(err => {
+    if (err && !curImg) {
       setStat('页面脚本未正确加载，请按 Ctrl+F5（Mac 为 ⌘+Shift+R）强制刷新。', true);
-    }, 0);
-  }
+    }
+  });
 })();
 
 /* ---------------- 风格卡片 ---------------- */
@@ -425,17 +463,44 @@ const STYLE_META = [
     const el = document.createElement('div');
     el.className = 'stile' + (s.key === curStyle ? ' on' : '');
     el.dataset.key = s.key;
+    // 单选组语义：读屏能播报，键盘能 Tab 进来 + 回车/空格选中
+    el.setAttribute('role', 'radio');
+    el.setAttribute('aria-checked', s.key === curStyle ? 'true' : 'false');
+    // roving tabindex：整组只占一个 Tab 位，组内用方向键切换
+    el.tabIndex = s.key === curStyle ? 0 : -1;
     el.innerHTML = '<div class="nm"><span class="dot"></span>' + s.label + '</div>' +
       '<div class="ds">' + s.desc + '</div>' +
       '<div class="chips">' + (STYLE_STEPS[s.key] || []).map(t => '<i>' + t + '</i>').join('') + '</div>';
     el.onclick = () => selectStyle(s.key);
+    el.addEventListener('keydown', e => {
+      const keys = STYLE_META.map(x => x.key);
+      const i = keys.indexOf(s.key);
+      let ni = -1;
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault(); selectStyle(s.key); return;
+      }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') ni = (i + 1) % keys.length;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ni = (i - 1 + keys.length) % keys.length;
+      else if (e.key === 'Home') ni = 0;
+      else if (e.key === 'End') ni = keys.length - 1;
+      if (ni >= 0) {
+        e.preventDefault();
+        selectStyle(keys[ni]);
+        box.children[ni].focus();
+      }
+    });
     box.appendChild(el);
   }
 })();
 
 function selectStyle(key) {
   curStyle = key;
-  for (const el of $('styleBox').children) el.classList.toggle('on', el.dataset.key === key);
+  for (const el of $('styleBox').children) {
+    const on = el.dataset.key === key;
+    el.classList.toggle('on', on);
+    el.setAttribute('aria-checked', on ? 'true' : 'false');
+    el.tabIndex = on ? 0 : -1;
+  }
   const s = STYLE_META.find(x => x.key === key);
   $('flowLine').textContent = s.label + ' · ' + (STYLE_STEPS[key] || []).join(' → ');
 
@@ -477,6 +542,13 @@ function selectStyle(key) {
 /* ---------------- 文件选择 ---------------- */
 const drop = $('drop'), fileIn = $('file'), pickBtn = $('pickBtn');
 drop.onclick = () => fileIn.click();
+// 键盘可达：空格 / 回车等价于点击。没有这个，桌面键盘用户完全无法选图。
+drop.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+    e.preventDefault();
+    fileIn.click();
+  }
+});
 if (pickBtn) pickBtn.onclick = (e) => { e.stopPropagation(); fileIn.click(); };
 ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
   e.preventDefault(); drop.classList.add('on');
@@ -490,20 +562,41 @@ drop.addEventListener('drop', e => {
 });
 fileIn.onchange = () => { if (fileIn.files[0]) takeFile(fileIn.files[0]); };
 
+/* 缩略图 blob URL 需要手动回收，否则每选一张图就泄漏一份原图内存 */
+let thumbURL = null;
+
 async function takeFile(f) {
   if (!f.type.startsWith('image/')) { alert('请选择图片文件'); return; }
-  curFile = f;
+
+  /* 关键顺序：先把新图完整解码成功，再改动 curFile / curImg。
+   * 旧写法先写 curFile 再 await 解码，解码失败会让 curFile（新文件）和
+   * curImg（上一张旧图）错配 —— 生成用旧图，而下载的播放器里嵌的是坏文件。 */
   const url = URL.createObjectURL(f);
+  let img;
+  try {
+    img = new Image();
+    img.decoding = 'sync';
+    await new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = () => rej(new Error('图片解码失败，可能已损坏或格式不受支持'));
+      img.src = url;
+    });
+    if (!img.naturalWidth || !img.naturalHeight) throw new Error('图片尺寸无效');
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    setStat('无法读取这张图片：' + e.message, true);
+    return;
+  }
+
+  // 解码成功，此时才提交状态
+  if (thumbURL) URL.revokeObjectURL(thumbURL);
+  thumbURL = url;
+  curFile = f; curImg = img; curW = img.naturalWidth; curH = img.naturalHeight;
+
   $('thumb').src = url;
   $('thumbWrap').style.display = 'block';
   $('fn').textContent = f.name;
-  $('fs').textContent = (f.size / 1024 / 1024).toFixed(1) + ' MB';
-
-  const img = new Image();
-  img.decoding = 'sync';
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-  curImg = img; curW = img.naturalWidth; curH = img.naturalHeight;
-  $('fs').textContent += ` · ${curW}×${curH}`;
+  $('fs').textContent = (f.size / 1024 / 1024).toFixed(1) + ' MB' + ` · ${curW}×${curH}`;
   $('go').disabled = false;
   setStat('已选择，点「开始生成」');
 }
@@ -590,8 +683,10 @@ $('go').onclick = async () => {
     }
   };
   worker.onerror = e => {
-    setStat('Worker 出错：' + e.message, true);
+    // 与其它错误分支保持一致：不重置进度条的话会停在失败前那个百分比
+    setStat('Worker 出错：' + (e.message || '无法加载 worker.js'), true);
     $('go').disabled = false;
+    setProg(0);
   };
   worker.postMessage({ type: 'generate', rgba: curRGBA, w: procW, h: procH, opts }, [curRGBA.buffer]);
 };
@@ -600,6 +695,18 @@ $('go').onclick = async () => {
 function showResult(r) {
   $('result').style.display = 'block';
   $('hint').style.display = 'none';
+  // render.js 是异步引入的；生成耗时通常已足够，这里再兜一次底
+  if (!(window.OILRender && window.OILRender.preprocess)) {
+    whenRenderReady(err => {
+      if (err) { setStat('渲染器未就绪：' + err.message + '。请强制刷新重试。', true); return; }
+      drawResult(r);
+    });
+    return;
+  }
+  drawResult(r);
+}
+
+function drawResult(r) {
   setTimeout(() => {
     try { $('result').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
   }, 150);
@@ -723,41 +830,44 @@ $('replay').onclick = () => {
 /* ---------------- 下载 ---------------- */
 /* 导出终帧：不用屏幕预览画布（它最宽只有 1000px，还受设备像素比影响），
  * 而是按原图分辨率离屏重绘一遍，保证下载到的是全尺寸图。 */
-$('dlPreview').onclick = () => {
+$('dlPreview').onclick = async () => {
   if (!result) return;
   const btn = $('dlPreview');
   const old = btn.textContent;
-  const mult = +(  document.getElementById('dlRes').value || 1);
+  const mult = +($('dlRes').value || 1);
   btn.disabled = true;
   btn.textContent = '导出中…';
   // 让按钮状态先渲染出来，再做重计算
-  setTimeout(() => {
-    try {
-      const outW = Math.round(result.w * mult), outH = Math.round(result.h * mult);
-      const blob = renderFullFrame(result, mult);
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'brushtrokes-' + result.style + '-' + outW + 'x' + outH + '.png';
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-      setStat('已导出终帧 · ' + outW + '×' + outH + ' · ' + (blob.size / 1048576).toFixed(1) + ' MB');
-    } catch (e) {
-      alert('导出失败：' + e.message);
-      console.error(e);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = old;
-    }
-  }, 30);
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const { blob, w: outW, h: outH, clamped } = await renderFullFrame(result, mult);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'brushtrokes-' + result.style + '-' + outW + 'x' + outH + '.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    let msg = '已导出终帧 · ' + outW + '×' + outH + ' · ' + (blob.size / 1048576).toFixed(1) + ' MB';
+    // 大图会撞上 MAX 上限，必须如实告知，否则用户以为拿到了 3 倍图
+    if (clamped) msg += `（已自动限制到长边 ${MAX_EXPORT_SIDE}px）`;
+    setStat(msg);
+  } catch (e) {
+    setStat('导出失败：' + e.message, true);
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
 };
 
-/* 按原图尺寸（或指定倍数）把全部笔触重绘到离屏画布，返回 PNG Blob */
-function renderFullFrame(r, mult) {
+/* 导出的长边上限。超过会 OOM 或让编码长时间阻塞，宁可缩小并明确告知。 */
+const MAX_EXPORT_SIDE = 8000;
+
+/* 按原图尺寸（或指定倍数）把全部笔触重绘到离屏画布。
+ * 返回真实输出尺寸，供调用方如实上报（旧实现只换算不回报，会写错文件名）。 */
+async function renderFullFrame(r, mult) {
   const k = mult || 1;
   const W = Math.round(r.w * k), H = Math.round(r.h * k);
-  // 防御：过大尺寸容易 OOM，给个上限（约 8000×8000）
-  const MAX = 8000;
-  const shrink = Math.min(1, MAX / Math.max(W, H));
+  const shrink = Math.min(1, MAX_EXPORT_SIDE / Math.max(W, H));
   const cw = Math.round(W * shrink), ch = Math.round(H * shrink);
 
   const cv = document.createElement('canvas');
@@ -769,19 +879,12 @@ function renderFullFrame(r, mult) {
   for (let i = 0; i < r.strokes.length; i++) {
     OILRender.drawStroke(c, r.strokes, sc, i, 1, pre[i]);
   }
-  // toBlob 是同步编码，用 dataURL 兜底以便在无回调场景也能拿到
-  const durl = cv.toDataURL('image/png');
-  return dataURLtoBlob(durl);
-}
-
-function dataURLtoBlob(durl) {
-  const parts = durl.split(',');
-  const mime = parts[0].match(/:(.*?);/)[1];
-  const bin = atob(parts[1]);
-  const len = bin.length;
-  const buf = new Uint8Array(len);
-  for (let i = 0; i < len; i++) buf[i] = bin.charCodeAt(i);
-  return new Blob([buf], { type: mime });
+  /* 用 toBlob（异步编码，不生成 base64 中间字符串）。
+   * 旧实现走 toDataURL + atob 逐字节拷贝，8K 图会阻塞主线程并吃掉约 3-4 倍内存。 */
+  const blob = await new Promise((res, rej) => {
+    cv.toBlob(b => (b ? res(b) : rej(new Error('PNG 编码失败'))), 'image/png');
+  });
+  return { blob, w: cw, h: ch, clamped: cw !== W || ch !== H };
 }
 
 $('dlPlayer').onclick = async () => {
@@ -818,23 +921,40 @@ async function buildPlayerBlob(r, file) {
     strokes: r.strokes,
   };
   const V = '?v=' + encodeURIComponent(window.OIL_BUILD || Date.now());
+  // 必须检查 response.ok：404 时 .text() 会拿到错误页 HTML，
+  // 占位符全部替换不上，最后静默产出一个没有脚本的空播放器。
+  const grab = async (name) => {
+    const res = await fetch(name + V);
+    if (!res.ok) throw new Error(name + ' 加载失败（HTTP ' + res.status + '）');
+    return res.text();
+  };
   const [tpl, renderSrc] = await Promise.all([
-    fetch('player-template.html' + V).then(x => x.text()),
-    fetch('render.js' + V).then(x => x.text()),
+    grab('player-template.html'),
+    grab('render.js'),
   ]);
+  /* 内联进脚本标签的 JSON 必须转义，否则字符串里出现脚本结束标记
+   * 就能提前闭合标签。当前数据都来自 core.js 常量，属防御纵深。 */
+  const safeJSON = (o) => JSON.stringify(o)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+  // 插进 HTML 文本节点的部分做实体转义
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
   const html = tpl
     .replace('__RENDERJS__', () => renderSrc)
-    .replace('__DATA__', () => JSON.stringify(data))
+    .replace('__DATA__', () => safeJSON(data))
     .replace(/__IMGMIME__/g, () => mime)
     .replace(/__IMG__/g, () => b64)
-    .replace(/__STAGEMETA__/g, () => JSON.stringify(r.stages))
+    .replace(/__STAGEMETA__/g, () => safeJSON(r.stages))
     .replace(/__N__/g, () => r.strokes.length.toLocaleString())
     .replace(/__NSTAGE__/g, () => String(r.stages.length))
     .replace(/__TOT__/g, () => r.total.toFixed(1))
     .replace(/__IW__/g, () => String(r.w))
     .replace(/__IH__/g, () => String(r.h))
-    .replace(/__STYLELABEL__/g, () => r.styleLabel || '绘画')
-    .replace(/__STYLESEQ__/g, () => r.stages.map(s => s.label).join(' → '))
+    .replace(/__STYLELABEL__/g, () => esc(r.styleLabel || '绘画'))
+    .replace(/__STYLESEQ__/g, () => esc(r.stages.map(s => s.label).join(' → ')))
     .replace(/__UNIT__/g, () => (r.style === 'posterize' ? '块色域' : '条笔触'));
   return new Blob([html], { type: 'text/html;charset=utf-8' });
 }

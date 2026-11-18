@@ -2,10 +2,17 @@
 .DS_Store
 Thumbs.db
 *.swp
+.vscode/
+.idea/
 
 # 依赖与构建
 node_modules/
 *.log
+_site/
 
 # 临时文件
 *.tmp
+.env*
+
+# 作者本地推送脚本（含本机绝对路径，不适合进仓库）
+push.ps1

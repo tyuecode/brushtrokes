@@ -4,38 +4,45 @@
 <title>Brushtrokes · 笔触工坊 — __STYLELABEL__</title>
 <style>
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;width:1920px;height:1080px;overflow:hidden}
+  /* 舞台固定 1920x1080（原设计比例），但用 transform 等比缩放适配视口。
+   * 旧写法把 body 写死 1920x1080 + overflow:hidden，在 1366x768 或
+   * 带地址栏的 1080p 屏幕上底部和右侧会被直接切掉且无法滚动。 */
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#050404}
   body{font-family:"Microsoft YaHei","PingFang SC","Segoe UI",sans-serif;
        background:radial-gradient(1400px 820px at 8% -12%,#1b1712 0%,#0c0a08 56%,#050404 100%);
        color:#ece6dc;-webkit-font-smoothing:antialiased}
+  #stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;
+         transform-origin:center center;transform:translate(-50%,-50%) scale(1)}
   .top{height:76px;display:flex;align-items:center;padding:0 36px;gap:18px}
   .dot{width:9px;height:9px;border-radius:50%;background:#d9a441;box-shadow:0 0 15px #d9a441}
   h1{font-size:26px;margin:0;letter-spacing:.6px;font-weight:700}
   h1 small{font-size:12.5px;font-weight:400;color:#9b8d78;margin-left:12px;letter-spacing:0}
-  .chips{margin-left:auto;display:flex;gap:9px}
+  .chips{margin-left:auto;display:flex;gap:9px;align-items:center}
   .chip{padding:6px 13px;border-radius:10px;background:rgba(255,255,255,.05);
         border:1px solid rgba(255,255,255,.09);font-size:12.5px;color:#b8ab97}
   .chip b{color:#fff;font-size:15px;font-variant-numeric:tabular-nums;margin-right:4px}
   .main{height:1004px;padding:0 36px 14px;display:flex;gap:22px}
-  .col-l{width:648px;display:flex;flex-direction:column;gap:11px}
+  .col-l{width:648px;display:flex;flex-direction:column;gap:11px;min-height:0}
   .card{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.08);
         border-radius:15px;padding:11px}
   .cap{display:flex;align-items:center;gap:8px;font-size:12px;color:#9b8d78;
        letter-spacing:.4px;padding:1px 3px 7px}
   .cap b{color:#e8dfd2;font-size:13px;font-weight:600;letter-spacing:0}
   .cap .tag{margin-left:auto;font-size:11px;color:#7d7264}
-  #ref{width:600px;height:auto;display:block;border-radius:8px;
+  /* 参考图限高：竖图不再把左侧栏撑爆 */
+  #ref{width:600px;max-height:520px;object-fit:contain;display:block;border-radius:8px;
        outline:1px solid rgba(255,255,255,.1)}
-  .info{flex:1;display:flex;flex-direction:column;gap:9px}
+  .info{flex:1;display:flex;flex-direction:column;gap:9px;min-height:0;overflow:hidden}
   .now{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
        border-radius:10px;padding:8px 10px;font-size:11.5px;color:#9b8d78}
   .now .h{color:#cdc2b2;font-size:11px;letter-spacing:.5px;margin-bottom:5px}
   .now .g{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 6px;
           font-variant-numeric:tabular-nums}
   .now .g span b{color:#f4eee4;font-weight:600}
-  .col-r{flex:1;display:flex}
-  .cwrap{flex:1;display:flex;flex-direction:column;justify-content:center}
-  #cv{display:block;border-radius:9px;box-shadow:0 22px 56px rgba(0,0,0,.62)}
+  .col-r{flex:1;display:flex;min-width:0}
+  .cwrap{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
+  #cv{display:block;border-radius:9px;box-shadow:0 22px 56px rgba(0,0,0,.62);
+      max-width:100%;height:auto}
   .prog{margin-top:10px;display:flex;align-items:center;gap:12px;font-size:12px;
         color:#9b8d78;font-variant-numeric:tabular-nums}
   .track{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.075);
@@ -53,8 +60,17 @@
   .stg b{font-weight:600}
   .stg.on{color:#0f0c08;background:#e0b25c;border-color:#e0b25c}
   .stg.done{color:#cdc2b2;background:rgba(217,164,65,.10);border-color:rgba(217,164,65,.28)}
+  /* 播放控制 */
+  .ctl{display:flex;align-items:center;gap:8px;margin-left:10px}
+  .btn{padding:6px 12px;border-radius:9px;font-size:12.5px;font-weight:600;
+       background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+       color:#e8dfd2;cursor:pointer;font-family:inherit;transition:all .16s}
+  .btn:hover{background:rgba(217,164,65,.16);border-color:rgba(217,164,65,.5)}
+  .btn:focus-visible{outline:2px solid #e8c26a;outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head>
 <body>
+<div id="stage">
 <div class="top">
   <div class="dot"></div>
   <h1>__STYLELABEL__逐笔重绘<small>__STYLESEQ__</small></h1>
@@ -85,7 +101,12 @@
   <div class="col-r">
     <div class="cwrap">
       <div class="cap"><b>画布</b><span id="hintTxt">逐笔铺陈</span>
-        <span class="tag badge" id="state">绘制中</span></div>
+        <span class="tag badge" id="state">绘制中</span>
+        <span class="ctl">
+          <button class="btn" id="btnPlay" type="button">暂停</button>
+          <button class="btn" id="btnReplay" type="button">重播</button>
+        </span>
+      </div>
       <canvas id="cv"></canvas>
       <div class="prog">
         <span id="tcount">0 / __N__</span>
@@ -95,6 +116,7 @@
     </div>
   </div>
 </div>
+</div>
 <script>__RENDERJS__</script>
 <script>
 const DATA = __DATA__;
@@ -102,15 +124,32 @@ const GROUND = DATA.ground || { type: 'oil', color: '#181613' };
 const STAGES = __STAGEMETA__ || [];
 const IW = __IW__, IH = __IH__;
 
-/* 自适应到 1920x1080 布局 */
-(function fit() {
-  const targetW = 1086, targetH = Math.round(targetW * IH / IW);
+/* ---- 舞台自适应 ----
+ * 1) #stage 固定 1920x1080，按视口等比缩放（contain），整块可见、不裁切。
+ * 2) 画布尺寸同时受可用宽/高约束：旧实现只按宽度 1086 算高度，
+ *    竖图会算出 4000+px 高，把布局撑爆。 */
+(function fitStage() {
+  const stage = document.getElementById('stage');
+  const fitScale = () => {
+    const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    stage.style.transform = 'translate(-50%,-50%) scale(' + s + ')';
+  };
+  fitStage.scale = fitScale;
+  fitScale();
+  window.addEventListener('resize', fitScale);
+})();
+
+/* 画布：在 .cwrap 的可用区域里 contain 适配，且限制 DPR 避免超大位图 */
+(function fitCanvas() {
+  const targetW = 1086, maxH = 780;          // 右侧栏可用高度（1080-76-上部留白）
+  let w = targetW, h = Math.round(w * IH / IW);
+  if (h > maxH) { h = maxH; w = Math.round(h * IW / IH); }
   const cv = document.getElementById('cv');
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  cv.width = Math.round(targetW * dpr);
-  cv.height = Math.round(targetH * dpr);
-  cv.style.width = targetW + 'px';
-  cv.style.height = targetH + 'px';
+  cv.width = Math.round(w * dpr);
+  cv.height = Math.round(h * dpr);
+  cv.style.width = w + 'px';
+  cv.style.height = h + 'px';
   const ref = document.getElementById('ref');
   ref.style.height = 'auto';
 })();
@@ -260,8 +299,11 @@ let scrubbing = false, t0 = null, offset = 0;
   const pos = e => { const b = tr.getBoundingClientRect();
                      return Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)); };
   tr.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0) return;
     scrubbing = true; tr.setPointerCapture(e.pointerId);
     seekTo(pos(e) * TOTAL, true); offset = t; t0 = null;
+    // 拖动期间停掉循环，松手后按新位置重新起跑（否则会跳回旧 offset）
+    stopLoop();
   });
   tr.addEventListener('pointermove', e => {
     if (!scrubbing) return;
@@ -271,19 +313,72 @@ let scrubbing = false, t0 = null, offset = 0;
     scrubbing = false;
     try { tr.releasePointerCapture(e.pointerId); } catch(_) {}
     offset = t; t0 = null;
+    if (!paused) startLoop();
+  });
+  tr.addEventListener('pointercancel', () => {
+    scrubbing = false; offset = t; t0 = null;
+    if (!paused) startLoop();
   });
 })();
 
-if (!MANUAL) {
-  reset();
-  const loop = now => {
+/* ---- 播放控制：暂停 / 重播 ----
+ * 旧实现没有这两个按钮，播完后 RAF 还在每帧重绘静态终帧，永久空转耗电。 */
+let paused = false, rafId = null;
+
+function stopLoop() {
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+}
+function startLoop() {
+  stopLoop();
+  t0 = null;
+  const step = now => {
     if (t0 === null) t0 = now;
-    if (!scrubbing) advance(offset + (now - t0) / 1000);
-    hud(); requestAnimationFrame(loop);
+    if (!scrubbing && !paused) {
+      advance(offset + (now - t0) / 1000);
+      hud();
+    }
+    // 画完且没在拖动 → 停掉循环，不再空转
+    if (done && !scrubbing && !paused) { rafId = null; return; }
+    rafId = requestAnimationFrame(step);
   };
-  requestAnimationFrame(loop);
+  rafId = requestAnimationFrame(step);
+}
+function setPaused(v) {
+  paused = v;
+  offset = t; t0 = null;
+  const b = $('btnPlay');
+  b.textContent = paused ? '播放' : '暂停';
+  b.setAttribute('aria-pressed', paused ? 'true' : 'false');
+  if (!paused) startLoop(); else stopLoop();
+  // 暂停时也要把当前这一笔画完，保持画面稳定
+  if (paused) hud();
+}
+function replay() {
+  stopLoop();
+  paused = false;
+  const b = $('btnPlay');
+  b.textContent = '暂停';
+  b.setAttribute('aria-pressed', 'false');
+  offset = 0; t0 = null;
+  reset();
+  startLoop();
+}
+if (!MANUAL) {
+  $('btnPlay').addEventListener('click', () => setPaused(!paused));
+  $('btnReplay').addEventListener('click', replay);
+  // 空格：播放/暂停（输入框内不抢焦点）
+  window.addEventListener('keydown', e => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea') return;
+    if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); setPaused(!paused); }
+    else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); replay(); }
+  });
+  reset();
+  startLoop();
 } else {
   reset(); hud();
+  $('btnPlay').addEventListener('click', () => setPaused(!paused));
+  $('btnReplay').addEventListener('click', replay);
 }
 </script>
 </body></html>

@@ -5,4 +5,7 @@
 *.yml     text eol=lf
 *.css     text eol=lf
 *.json    text eol=lf
+*.ps1     text eol=crlf
+.gitignore text eol=lf
+.gitattributes text eol=lf
 CNAME     text eol=lf
